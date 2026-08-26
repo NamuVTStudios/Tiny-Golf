@@ -1,0 +1,24 @@
+fileFormatVersion: 2
+guid: 2fb78d96508d6194c94b3acdb6aca8aa
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - gameSettings: {fileID: 11400000, guid: bf37679bcf20bf74b84ef62d9ef301c3, type: 2}
+  - playerDropdown: {instanceID: 0}
+  - holesInputField: {instanceID: 0}
+  - strokesInputField: {instanceID: 0}
+  - timeSlider: {instanceID: 0}
+  - containerP1: {instanceID: 0}
+  - containerP2: {instanceID: 0}
+  - containerP3: {instanceID: 0}
+  - containerP4: {instanceID: 0}
+  - spriteDropdownP1: {instanceID: 0}
+  - spriteDropdownP2: {instanceID: 0}
+  - spriteDropdownP3: {instanceID: 0}
+  - spriteDropdownP4: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
