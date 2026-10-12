@@ -3,72 +3,40 @@ using UnityEngine;
 
 public class ScoreController : MonoBehaviour
 {
-    // Diccionario para guardar el puntaje acumulado por cada ID de jugador
-    private Dictionary<int, int> playerTotalScores = new Dictionary<int, int>();
-    private int totalHolesInMatch;
-    private int currentHoleNumber = 1;
-    
-    // Bandera para la regla oficial de la UNAHUR (2 puntos al primero, 1 al resto)
+    // Regla UNAHUR: 2 puntos al primero en embocar, 1 a los demás (se reinicia en cada nivel/escena)
     private bool hasAnyPlayerScoredInCurrentHole = false;
 
-    public void InitializeScoreboard(int playerCount, int totalHoles)
+    public void InitializeScoreboard(int playerCount)
     {
-        totalHolesInMatch = totalHoles;
-        currentHoleNumber = 1;
         hasAnyPlayerScoredInCurrentHole = false;
-        playerTotalScores.Clear();
-
         for (int i = 0; i < playerCount; i++)
         {
-            playerTotalScores.Add(i, 0); // Registramos a cada jugador de forma única
+            if (!MatchSession.Scores.ContainsKey(i)) MatchSession.Scores[i] = 0;
         }
     }
 
-    // Recibe el ID exacto del jugador para que no haya confusiones posicionales
     public void RegisterHoleScore(int playerId)
     {
-        if (!playerTotalScores.ContainsKey(playerId)) return;
+        if (!MatchSession.Scores.ContainsKey(playerId)) return;
 
-        int pointsToAssign = 0;
-
-        if (!hasAnyPlayerScoredInCurrentHole)
-        {
-            pointsToAssign = 2; // Premio mayor para el primero
-            hasAnyPlayerScoredInCurrentHole = true; 
-            Debug.Log($"ScoreController: Player {playerId + 1} anotó PRIMERO. +2 Puntos.");
-        }
-        else
-        {
-            pointsToAssign = 1; // Puntos para los siguientes
-            Debug.Log($"ScoreController: Player {playerId + 1} anotó. +1 Punto.");
-        }
-
-        playerTotalScores[playerId] += pointsToAssign;
-    }
-
-    public void AdvanceToNextHole()
-    {
-        currentHoleNumber++;
-        hasAnyPlayerScoredInCurrentHole = false; // Se resetea el premio de 2 puntos para el nuevo hoyo
-    }
-
-    public bool IsMatchFinished()
-    {
-        return currentHoleNumber > totalHolesInMatch;
+        int points = hasAnyPlayerScoredInCurrentHole ? 1 : 2;
+        hasAnyPlayerScoredInCurrentHole = true;
+        MatchSession.Scores[playerId] += points;
+        Debug.Log($"ScoreController: Player {playerId + 1} anotó. +{points} Punto(s).");
     }
 
     public int GetCurrentHoleNumber()
     {
-        return currentHoleNumber;
+        return Mathf.Min(MatchSession.CurrentLevel + 1, MatchSession.LevelScenes.Length);
     }
 
     public int GetPlayerScore(int playerId)
     {
-        return playerTotalScores.ContainsKey(playerId) ? playerTotalScores[playerId] : 0;
+        return MatchSession.Scores.ContainsKey(playerId) ? MatchSession.Scores[playerId] : 0;
     }
 
     public Dictionary<int, int> GetRawScores()
     {
-        return playerTotalScores;
+        return MatchSession.Scores;
     }
 }

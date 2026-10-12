@@ -1,5 +1,5 @@
 using System;
-using UnityEngine; // <--- Asegúrate de tener esta librería para usar Vector2
+using UnityEngine;
 
 [Serializable]
 public class PlayerData

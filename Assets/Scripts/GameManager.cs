@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
@@ -22,7 +23,9 @@ public class GameManager : MonoBehaviour
     private bool isMatchActive = false;
     private bool activePlayerMaxStrokesReached = false;
     private ScoreController scoreController;
-
+    private bool isLevelEnding = false;
+    public bool CanPlayerShoot => isMatchActive && !isProcessingHole && !isLevelEnding;
+    private float matchTimeRemaining;   // en StartGlobalMatch: = gameSettings.matchTimeLimit;
     private HashSet<int> playersWhoFinishedCurrentHole = new HashSet<int>();
 
     private void Awake()
@@ -41,15 +44,37 @@ public class GameManager : MonoBehaviour
         StartGlobalMatch();
     }
 
+    public void OnTurnTimeExpired()
+    {
+        if (!isMatchActive || isProcessingHole || isLevelEnding) return;
+        // Si la bola rueda, HandleBallStopped ya pasa el turno cuando frene
+        if (gameplayBall.IsStopped()) AdvanceToNextTurn();
+    }
+
+    private void Update()
+    {
+        if (!isMatchActive) return;
+        matchTimeRemaining -= Time.deltaTime;
+        GameplayUIManager.Instance.UpdateMatchTime(matchTimeRemaining);
+        if (matchTimeRemaining <= 0f) FinishMatch();
+    }
+
     private void StartGlobalMatch()
     {
         isMatchActive = true;
         isProcessingHole = false;
+        isLevelEnding = false;
         activePlayerMaxStrokesReached = false;
         playersWhoFinishedCurrentHole.Clear();
 
-        scoreController.InitializeScoreboard(gameSettings.playerCount, gameSettings.totalHoles);
-        turnController.InitializeTurns(gameSettings.playerCount, gameSettings.turnTimeLimit, spawnPoint.position);
+        // Por si abrís un nivel directo desde el editor sin pasar por el menú
+        if (MatchSession.Scores.Count != gameSettings.playerCount)
+            MatchSession.Reset(gameSettings.playerCount, gameSettings.matchTimeLimit);
+        matchTimeRemaining = MatchSession.MatchTimeRemaining;
+
+        scoreController.InitializeScoreboard(gameSettings.playerCount);
+        turnController.InitializeTurns(gameSettings.playerCount, gameSettings.turnTimeLimit, spawnPoint.position, gameSettings.playerNames);
+        turnController.OnTimeChanged += GameplayUIManager.Instance.UpdateTurnTime;
 
         gameplayBall.OnBallStopped -= HandleBallStopped;
         gameplayBall.OnBallStopped += HandleBallStopped;
@@ -155,13 +180,13 @@ public class GameManager : MonoBehaviour
         isBallOutOfBounds = true;
     }
 
-    public void RegisterHoleCompletion()
+    public void RegisterHoleCompletion(Vector3 holePos)
     {
-        if (isProcessingHole || !isMatchActive) return;
-        StartCoroutine(ProcessHoleSequence());
+        if (isProcessingHole || !isMatchActive || isLevelEnding) return;
+        StartCoroutine(ProcessHoleSequence(holePos));
     }
 
-    private IEnumerator ProcessHoleSequence()
+    private IEnumerator ProcessHoleSequence(Vector3 holePos)
     {
         isProcessingHole = true;
         shotController.enabled = false;
@@ -172,11 +197,11 @@ public class GameManager : MonoBehaviour
 
         PlayerData activePlayer = turnController.CurrentPlayer;
         scoreController.RegisterHoleScore(activePlayer.Id);
-
         playersWhoFinishedCurrentHole.Add(activePlayer.Id);
-        gameplayBall.SetBallState(false);
+        UpdateGameplayUI(); // el puntaje se actualiza al instante
 
-        yield return new WaitForSeconds(0.6f);
+        yield return StartCoroutine(gameplayBall.HoleInAnimation(holePos));
+        yield return new WaitForSeconds(0.3f);
 
         ResetBallToSavedPosition(spawnPoint.position);
 
@@ -188,28 +213,24 @@ public class GameManager : MonoBehaviour
 
     private void EvaluateHoleProgression()
     {
-        scoreController.AdvanceToNextHole();
+        if (isLevelEnding) return;
+        isLevelEnding = true;
+        shotController.enabled = false;
+        StartCoroutine(EndLevelRoutine());
+    }
+
+    private IEnumerator EndLevelRoutine()
+    {
+        yield return new WaitForSeconds(1.5f);
+
         playersWhoFinishedCurrentHole.Clear();
+        MatchSession.MatchTimeRemaining = matchTimeRemaining;
+        MatchSession.CurrentLevel++;
 
-        if (scoreController.IsMatchFinished() || scoreController.GetCurrentHoleNumber() > gameSettings.totalHoles)
-        {
+        if (MatchSession.CurrentLevel >= MatchSession.LevelScenes.Length)
             FinishMatch();
-        }
         else
-        {
-            // CORRECCIÓN MAGISTRAL: Reemplazamos el "4" fijo por el parámetro real del GameSettings
-            for (int i = 0; i < gameSettings.playerCount; i++)
-            {
-                turnController.PassToNextPlayer();
-                turnController.CurrentPlayer.LastSavedPosition = spawnPoint.position;
-                turnController.CurrentPlayer.CurrentHoleStrokes = 0; // Reset de golpes para el nuevo hoyo
-            }
-
-            gameplayBall.OnBallStopped -= HandleBallStopped;
-            gameplayBall.OnBallStopped += HandleBallStopped;
-
-            AdvanceToNextTurn();
-        }
+            SceneManager.LoadScene(MatchSession.LevelScenes[MatchSession.CurrentLevel]);
     }
 
     private void ResetBallToSavedPosition(Vector2 positionToMove)
@@ -272,14 +293,27 @@ public class GameManager : MonoBehaviour
             }
         }
 
-        // Refrescamos toda la interfaz HUD enviando el avatar/personaje del jugador actual
         GameplayUIManager.Instance.UpdateHUD(
             turnController.CurrentPlayer != null ? turnController.CurrentPlayer.Name : "Player",
             turnController.CurrentPlayer != null ? turnController.CurrentPlayer.CurrentHoleStrokes : 0,
+            gameSettings.maxStrokesPerHole,
             scoreController.GetCurrentHoleNumber(),
             gameSettings.totalHoles,
-            activeAvatarSprite // <--- INYECCIÓN DEL PERSONAJE COMPLETA EN LA PANTALLA DE GAMEPLAY
+            activeAvatarSprite
         );
+
+        GameplayUIManager.Instance.UpdateScoreboard(BuildScoreboard());
+    }
+
+    private string BuildScoreboard()
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var p in turnController.Players)
+        {
+            string mark = p == turnController.CurrentPlayer ? "> " : "  ";
+            sb.AppendLine($"{mark}{p.Name}: {scoreController.GetPlayerScore(p.Id)} pts");
+        }
+        return sb.ToString();
     }
 
     private void FinishMatch()
@@ -291,7 +325,7 @@ public class GameManager : MonoBehaviour
         MatchSummaryController summaryCtrl = FindAnyObjectByType<MatchSummaryController>();
         if (summaryCtrl != null)
         {
-            summaryCtrl.DisplayMatchResults(scoreController.GetRawScores(), gameSettings.playerCount);
+            summaryCtrl.DisplayMatchResults(scoreController.GetRawScores(), gameSettings.playerCount, gameSettings.playerNames);
         }
     }
 

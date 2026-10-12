@@ -8,6 +8,8 @@ public class TurnController : MonoBehaviour
     private int currentPlayerIndex = -1;
     private float turnTimeLimit;
     private Coroutine turnTimerCoroutine;
+    public event System.Action<float> OnTimeChanged;
+    public IReadOnlyList<PlayerData> Players => playersList;
 
     public PlayerData CurrentPlayer
     {
@@ -18,22 +20,21 @@ public class TurnController : MonoBehaviour
         }
     }
 
-    public void InitializeTurns(int playerCount, float timeLimit, Vector2 startingPosition)
-{
-    turnTimeLimit = timeLimit;
-    playersList.Clear(); // Limpiamos cualquier rastro de partidas anteriores
-
-    // CORRECCIÓN DINÁMICA: Solo creamos la cantidad de datos que el usuario eligió en la UI (1, 2 o 4)
-    for (int i = 0; i < playerCount; i++)
+    public void InitializeTurns(int playerCount, float timeLimit, Vector2 startingPosition, string[] names)
     {
-        PlayerData newPlayer = new PlayerData(i, $"Player {i + 1}");
-        newPlayer.LastSavedPosition = startingPosition; 
-        playersList.Add(newPlayer);
+        turnTimeLimit = timeLimit;
+        playersList.Clear();
+
+        for (int i = 0; i < playerCount; i++)
+        {
+            string playerName = (names != null && i < names.Length) ? names[i] : $"Player {i + 1}";
+            PlayerData newPlayer = new PlayerData(i, playerName);
+            newPlayer.LastSavedPosition = startingPosition;
+            playersList.Add(newPlayer);
+        }
+
+        currentPlayerIndex = -1;
     }
-    
-    currentPlayerIndex = -1; // Reset seguro de índice para arrancar desde el primero
-    Debug.Log($"TurnController: Inicializados exitosamente {playersList.Count} jugadores para la partida.");
-}
 
     public void PassToNextPlayer()
     {
@@ -70,15 +71,14 @@ public class TurnController : MonoBehaviour
 
     private IEnumerator CountTurnTime()
     {
-        float timeRemaining = turnTimeLimit;
-
-        while (timeRemaining > 0)
+        if (turnTimeLimit <= 0) yield break; // 0 = sin límite
+        float t = turnTimeLimit;
+        while (t > 0)
         {
-            timeRemaining -= Time.deltaTime;
+            t -= Time.deltaTime;
+            OnTimeChanged?.Invoke(Mathf.Max(t, 0f));
             yield return null;
         }
-
-        // Al expirar el tiempo, llamamos de forma segura al GameManager centralizado
-        GameManager.Instance.AdvanceToNextTurn();
+        GameManager.Instance.OnTurnTimeExpired();
     }
 }

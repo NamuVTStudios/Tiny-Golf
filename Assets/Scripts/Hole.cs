@@ -3,6 +3,9 @@ using UnityEngine;
 
 public class Hole : MonoBehaviour
 {
+    [Header("Effects")]
+    [SerializeField] private ParticleSystem holeInParticles;
+
     private Collider2D holeCollider;
 
     void Awake()
@@ -13,26 +16,18 @@ public class Hole : MonoBehaviour
     private void OnTriggerEnter2D(Collider2D collision)
     {
         Ball ball = collision.GetComponent<Ball>();
-        
-        if (ball != null)
-        {
-            Debug.Log("Hole: ¡La bola ha ingresado al hoyo!");
-            
-            // Deshabilitamos el colisionador del hoyo temporalmente para evitar el doble registro
-            StartCoroutine(DisableHoleTemporarily());
+        if (ball == null) return;
 
-            // Le avisamos al GameManager que la bola llegó a la meta
-            GameManager.Instance.RegisterHoleCompletion();
-        }
+        StartCoroutine(DisableHoleTemporarily());
+
+        if (holeInParticles != null) holeInParticles.Play();
+        GameManager.Instance.RegisterHoleCompletion(transform.position);
     }
 
     private IEnumerator DisableHoleTemporarily()
     {
         holeCollider.enabled = false;
-        
-        // Esperamos una décima de segundo (tiempo suficiente para que la bola se teletransporte lejos)
         yield return new WaitForSeconds(0.1f);
-        
         holeCollider.enabled = true;
     }
 }
