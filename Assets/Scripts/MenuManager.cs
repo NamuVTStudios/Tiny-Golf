@@ -12,6 +12,7 @@ public class MenuManager : MonoBehaviour
     [SerializeField] private TMP_Dropdown playerDropdown;
     [SerializeField] private TMP_InputField holesInputField;
     [SerializeField] private TMP_InputField strokesInputField;
+    [SerializeField] private TMP_InputField[] nameInputs; // 4, uno por contenedor
     [SerializeField] private Slider timeSlider;
 
     [Header("Dynamic Player Containers")]
@@ -68,18 +69,17 @@ public class MenuManager : MonoBehaviour
 
     public void StartGame()
     {
-        // Mapeo seguro: dropdown opción 0 = 1 jugador, opción 1 = 2 jugadores, opción 2 = 4 jugadores
         int[] playerOptions = { 1, 2, 4 };
         int actualPlayerCount = playerOptions[playerDropdown.value];
 
-        // Guardamos el número entero real en el ScriptableObject
         gameSettings.playerCount = actualPlayerCount;
-
-        // Dimensionamos el arreglo estético de forma exacta
         gameSettings.selectedPlayerSpriteIndices = new int[actualPlayerCount];
 
-        gameSettings.totalHoles = string.IsNullOrEmpty(holesInputField.text) ? 1 : int.Parse(holesInputField.text);
-        gameSettings.maxStrokesPerHole = string.IsNullOrEmpty(strokesInputField.text) ? 6 : int.Parse(strokesInputField.text);
+        int.TryParse(holesInputField != null ? holesInputField.text : "", out int holes);
+        gameSettings.totalHoles = Mathf.Max(1, holes);
+
+        int.TryParse(strokesInputField.text, out int strokes);
+        gameSettings.maxStrokesPerHole = strokes > 0 ? strokes : 6;
 
         if (timeSlider != null)
             gameSettings.turnTimeLimit = timeSlider.value;
@@ -92,6 +92,14 @@ public class MenuManager : MonoBehaviour
             if (spriteDropdownP4 != null) gameSettings.selectedPlayerSpriteIndices[3] = spriteDropdownP4.value;
         }
 
+        gameSettings.playerNames = new string[actualPlayerCount];
+        for (int i = 0; i < actualPlayerCount; i++)
+        {
+            string n = (nameInputs != null && i < nameInputs.Length && nameInputs[i] != null) ? nameInputs[i].text.Trim() : "";
+            gameSettings.playerNames[i] = string.IsNullOrEmpty(n) ? $"Player {i + 1}" : n;
+        }
+
+        MatchSession.Reset(actualPlayerCount, gameSettings.matchTimeLimit);
         SceneManager.LoadScene("ControlsScene");
     }
 }

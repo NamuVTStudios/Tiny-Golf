@@ -1,5 +1,5 @@
 using UnityEngine;
-using UnityEngine.EventSystems; // <--- OBLIGATORIO: Para detectar la UI
+using UnityEngine.EventSystems;
 
 public class ShotController : MonoBehaviour
 {
@@ -79,4 +79,6 @@ public class ShotController : MonoBehaviour
             GameManager.Instance.NotifyPlayerMaxStrokesReached();
         }
     }
+
+    private void OnDisable() { isDragging = false; }
 }

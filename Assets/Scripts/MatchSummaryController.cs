@@ -14,67 +14,67 @@ public class MatchSummaryController : MonoBehaviour
 
     private void Awake()
     {
-        // Blindaje: Nos aseguramos de que la pantalla de ganador empiece apagada
         if (summaryPanel != null) summaryPanel.SetActive(false);
     }
 
-    // Método principal que calcula el podio al terminar la partida
-    public void DisplayMatchResults(Dictionary<int, int> finalScores, int playerCount)
+    private string NameOf(int i, string[] names)
     {
-        summaryPanel.SetActive(true); // Encendemos el panel con tu fondo verde de grilla
+        return (names != null && i < names.Length) ? names[i] : $"Player {i + 1}";
+    }
+
+    public void DisplayMatchResults(Dictionary<int, int> finalScores, int playerCount, string[] names)
+    {
+        summaryPanel.SetActive(true);
 
         int highestScore = -1;
-        List<int> winningPlayersIndices = new List<int>();
-        string scoreboardContent = "FINAL LEADERBOARD:\n\n";
+        List<int> winners = new List<int>();
+        string content = "FINAL LEADERBOARD:\n\n";
 
-        // Recorremos los datos basándonos en el ID del diccionario seguro
         for (int i = 0; i < playerCount; i++)
         {
-            int playerScore = finalScores.ContainsKey(i) ? finalScores[i] : 0;
-            scoreboardContent += $"Player {i + 1}: {playerScore} Points\n";
+            int score = finalScores.ContainsKey(i) ? finalScores[i] : 0;
+            content += $"{NameOf(i, names)}: {score} Points\n";
 
-            if (playerScore > highestScore)
+            if (score > highestScore)
             {
-                highestScore = playerScore;
-                winningPlayersIndices.Clear();
-                winningPlayersIndices.Add(i);
+                highestScore = score;
+                winners.Clear();
+                winners.Add(i);
             }
-            else if (playerScore == highestScore)
+            else if (score == highestScore)
             {
-                winningPlayersIndices.Add(i);
+                winners.Add(i);
             }
         }
 
-        // Pintamos los textos de manera limpia arriba de los casilleros de la imagen
-        scoreboardDetailsText.text = scoreboardContent;
+        scoreboardDetailsText.text = content;
 
-        if (winningPlayersIndices.Count > 1)
+        if (winners.Count > 1)
         {
-            string tiedPlayers = "";
-            for (int i = 0; i < winningPlayersIndices.Count; i++)
+            string tied = "";
+            for (int i = 0; i < winners.Count; i++)
             {
-                tiedPlayers += $"Player {winningPlayersIndices[i] + 1}";
-                if (i < winningPlayersIndices.Count - 1) tiedPlayers += " & ";
+                tied += NameOf(winners[i], names);
+                if (i < winners.Count - 1) tied += " & ";
             }
-            winnerResultText.text = $"MATCH RESULT: TIE!\n({tiedPlayers})";
+            winnerResultText.text = $"MATCH RESULT: TIE!\n({tied})";
         }
         else
         {
-            int winnerId = winningPlayersIndices[0];
-            winnerResultText.text = $"🏆 WINNER: Player {winnerId + 1} 🏆";
+            winnerResultText.text = $"🏆 WINNER: {NameOf(winners[0], names)} 🏆";
         }
     }
 
-    // Funciones obligatorias para los botones de cierre
     public void RestartMatch()
     {
-        // Vuelve a cargar la escena de gameplay actual reiniciando todo el ciclo
-        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+        Time.timeScale = 1f;
+        MatchSession.Restart();
+        SceneManager.LoadScene(MatchSession.LevelScenes[0]);
     }
 
     public void QuitToMainMenu()
     {
-        // Regresa a la pantalla de configuración inicial de la Fase 1
-        SceneManager.LoadScene("MainMenu"); // Asegúrate de colocar el nombre exacto de tu escena de menú
+        Time.timeScale = 1f;
+        SceneManager.LoadScene("MainMenu");
     }
 }

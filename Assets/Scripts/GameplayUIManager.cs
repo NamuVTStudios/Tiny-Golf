@@ -10,9 +10,15 @@ public class GameplayUIManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI currentPlayerText;
     [SerializeField] private TextMeshProUGUI strokesText;
     [SerializeField] private TextMeshProUGUI holeNumberText;
+    [SerializeField] private TextMeshProUGUI scoreboardText;
 
     [Header("UI Character References")]
-    [SerializeField] private Image activePlayerAvatarImage; 
+    [SerializeField] private Image activePlayerAvatarImage;
+
+    [Header("Timers")]
+    [SerializeField] private TextMeshProUGUI matchTimeText;
+    [SerializeField] private TextMeshProUGUI turnTimeText;
+
 
     private void Awake()
     {
@@ -25,15 +31,15 @@ public class GameplayUIManager : MonoBehaviour
     }
 
     // Método utilitario centralizado para refrescar de un solo golpe toda la pantalla
-    public void UpdateHUD(string playerName, int currentStrokes, int currentHole, int totalHoles, Sprite playerAvatar)
+    public void UpdateHUD(string playerName, int currentStrokes, int maxStrokes, int currentHole, int totalHoles, Sprite playerAvatar)
     {
-        if (currentPlayerText != null) 
+        if (currentPlayerText != null)
             currentPlayerText.text = $"Turn: {playerName}";
 
-        if (strokesText != null) 
-            strokesText.text = $"Strokes: {currentStrokes}";
+        if (strokesText != null)
+            strokesText.text = $"Strokes: {currentStrokes} / {maxStrokes}";
 
-        if (holeNumberText != null) 
+        if (holeNumberText != null)
             holeNumberText.text = $"Hole: {currentHole} / {totalHoles}";
 
         if (activePlayerAvatarImage != null && playerAvatar != null)
@@ -41,4 +47,8 @@ public class GameplayUIManager : MonoBehaviour
             activePlayerAvatarImage.sprite = playerAvatar;
         }
     }
+
+    public void UpdateMatchTime(float s) { if (matchTimeText != null) matchTimeText.text = $"Match: {Mathf.CeilToInt(Mathf.Max(s, 0)) / 60}:{Mathf.CeilToInt(Mathf.Max(s, 0)) % 60:00}"; }
+    public void UpdateTurnTime(float s) { if (turnTimeText != null) turnTimeText.text = $"Time: {Mathf.CeilToInt(s)}s"; }
+    public void UpdateScoreboard(string text) { if (scoreboardText != null) scoreboardText.text = text; }
 }
