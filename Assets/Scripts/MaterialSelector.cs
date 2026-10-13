@@ -2,28 +2,15 @@ using UnityEngine;
 
 public class MaterialSelector : MonoBehaviour
 {
-    [SerializeField] private Ball gameplayBall;
-    private int currentSelectionIndex = 0;
+	[SerializeField] private Ball gameplayBall;
 
-    // Vincular este método al OnClick() de tu botón de la interfaz
-    public void ToggleNextBallMaterial()
-    {
-        // Solo permitimos cambiar el material si la bola está quieta en el suelo
-        if (!gameplayBall.IsStopped()) return;
+	// Vincular al OnClick() del botón de cambiar bola
+	public void ToggleNextBallMaterial()
+	{
+		// Solo se puede cambiar con la bola quieta y mientras es el turno de un jugador
+		if (gameplayBall == null || !gameplayBall.IsStopped()) return;
+		if (GameManager.Instance == null || !GameManager.Instance.CanPlayerShoot) return;
 
-        currentSelectionIndex = (currentSelectionIndex + 1) % 3;
-
-        switch (currentSelectionIndex)
-        {
-            case 0:
-                gameplayBall.ChangeMaterial(new StandardMaterialStrategy());
-                break;
-            case 1:
-                gameplayBall.ChangeMaterial(new RubberMaterialStrategy());
-                break;
-            case 2:
-                gameplayBall.ChangeMaterial(new StoneMaterialStrategy());
-                break;
-        }
-    }
+		GameManager.Instance.CycleCurrentPlayerMaterial();
+	}
 }

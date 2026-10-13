@@ -6,118 +6,149 @@ using UnityEngine;
 [RequireComponent(typeof(AudioSource))]
 public class Ball : MonoBehaviour
 {
-    public event Action OnBallStopped;
+	public event Action OnBallStopped;
 
-    [Header("Effects")]
-    [SerializeField] private ParticleSystem shotParticles;
+	[Header("Effects")]
+	[SerializeField] private ParticleSystem shotParticles;
 
-    [Header("Settings Injector")]
-    [SerializeField] private GameSettings gameSettings;
+	[Header("Settings Injector")]
+	[SerializeField] private GameSettings gameSettings;
 
-    [Header("Audio Settings")]
-    [SerializeField] private AudioClip shotSound;
-    [SerializeField] private AudioClip holeInSound;
+	[Header("Audio Settings")]
+	[SerializeField] private AudioClip shotSound;
+	[SerializeField] private AudioClip holeInSound;
 
-    private Rigidbody2D rb;
-    private CircleCollider2D ballCollider;
-    private SpriteRenderer ballRenderer;
-    private TrailRenderer ballTrail;
-    private AudioSource audioSource;
-    private bool isMoving = false;
-    private float shotTime;
+	private Rigidbody2D rb;
+	private CircleCollider2D ballCollider;
+	private SpriteRenderer ballRenderer;
+	private TrailRenderer ballTrail;
+	private AudioSource audioSource;
+	private bool isMoving = false;
+	private float shotTime;
 
-    private IBallMaterialStrategy currentMaterialStrategy;
+	private IBallMaterialStrategy currentMaterialStrategy;
+	private Sprite playerSprite;
+	public bool IsMoving => isMoving;
 
-    void Awake()
-    {
-        rb = GetComponent<Rigidbody2D>();
-        ballCollider = GetComponent<CircleCollider2D>();
-        ballRenderer = GetComponent<SpriteRenderer>();
-        ballTrail = GetComponent<TrailRenderer>();
-        audioSource = GetComponent<AudioSource>();
+	public void TeleportTo(Vector2 position)
+	{
+		ClearTrail();
+		rb.linearVelocity = Vector2.zero;
+		rb.angularVelocity = 0f;
+		rb.position = position;
+		transform.position = position;
+		Physics2D.SyncTransforms();
+		isMoving = false;
+	}
 
-        audioSource.playOnAwake = false;
-        audioSource.spatialBlend = 0f;
+	void Awake()
+	{
+		rb = GetComponent<Rigidbody2D>();
+		ballCollider = GetComponent<CircleCollider2D>();
+		ballRenderer = GetComponent<SpriteRenderer>();
+		ballTrail = GetComponent<TrailRenderer>();
+		audioSource = GetComponent<AudioSource>();
 
-        ChangeMaterial(new StandardMaterialStrategy());
-    }
+		audioSource.playOnAwake = false;
+		audioSource.spatialBlend = 0f;
 
-    public void ChangeMaterial(IBallMaterialStrategy newMaterial)
-    {
-        currentMaterialStrategy = newMaterial;
-        currentMaterialStrategy.ApplyPhysicalProperties(rb, ballCollider, ballRenderer, gameSettings);
-    }
+		ChangeMaterial(new StandardMaterialStrategy());
+	}
 
-    // NUEVO MÉTODO DE CONTROL: Apaga o enciende gráficos y colisiones de la bola de forma segura
-    public void SetBallState(bool visible)
-    {
-        if (ballRenderer != null) ballRenderer.enabled = visible;
-        if (ballCollider != null) ballCollider.enabled = visible;
+	public void ChangeMaterial(IBallMaterialStrategy newMaterial)
+	{
+		currentMaterialStrategy = newMaterial;
+		currentMaterialStrategy.ApplyPhysicalProperties(rb, ballCollider, ballRenderer, gameSettings);
+		RefreshSprite();
+	}
 
-        if (!visible)
-        {
-            rb.linearVelocity = Vector2.zero;
-            rb.angularVelocity = 0f;
-            isMoving = false;
-        }
-    }
+	// El GameManager llama a esto al empezar cada turno con el sprite que eligió el jugador
+	public void SetPlayerSprite(Sprite sprite)
+	{
+		playerSprite = sprite;
+		RefreshSprite();
+	}
 
-    public void ApplyForce(Vector2 forceDirection)
-    {
-        ClearTrail();
-        rb.AddForce(forceDirection, ForceMode2D.Impulse);
-        isMoving = true;
-        shotTime = Time.time;
+	private void RefreshSprite()
+	{
+		if (ballRenderer == null) return;
 
-        if (shotParticles != null) shotParticles.Play();
+		Sprite materialSprite = currentMaterialStrategy != null ? currentMaterialStrategy.GetOverrideSprite(gameSettings) : null;
+		Sprite finalSprite = materialSprite != null ? materialSprite : playerSprite;
 
-        if (audioSource != null && shotSound != null)
-        {
-            audioSource.PlayOneShot(shotSound);
-        }
-    }
+		if (finalSprite != null) ballRenderer.sprite = finalSprite;
+	}
 
-    void FixedUpdate()
-    {
-        if (isMoving && Time.time - shotTime > 0.15f && ballCollider.enabled && rb.linearVelocity.magnitude < 0.05f)
-        {
-            rb.linearVelocity = Vector2.zero;
-            rb.angularVelocity = 0f;
-            isMoving = false;
-            OnBallStopped?.Invoke();
-        }
-    }
+	// NUEVO MÉTODO DE CONTROL: Apaga o enciende gráficos y colisiones de la bola de forma segura
+	public void SetBallState(bool visible)
+	{
+		if (ballRenderer != null) ballRenderer.enabled = visible;
+		if (ballCollider != null) ballCollider.enabled = visible;
 
-    public void PlayHoleInSound()
-    {
-        if (audioSource != null && holeInSound != null)
-        {
-            audioSource.PlayOneShot(holeInSound);
-        }
-    }
+		if (!visible)
+		{
+			rb.linearVelocity = Vector2.zero;
+			rb.angularVelocity = 0f;
+			isMoving = false;
+		}
+	}
 
-    public bool IsStopped()
-    {
-        return !isMoving && rb.linearVelocity.magnitude < 0.05f;
-    }
+	public void ApplyForce(Vector2 forceDirection)
+	{
+		ClearTrail();
+		rb.AddForce(forceDirection, ForceMode2D.Impulse);
+		isMoving = true;
+		shotTime = Time.time;
 
-    public void ClearTrail()
-    {
-        if (ballTrail != null) ballTrail.Clear();
-    }
+		if (shotParticles != null) shotParticles.Play();
 
-    public IEnumerator HoleInAnimation(Vector3 holeCenter)
-    {
-        rb.linearVelocity = Vector2.zero;
-        ballCollider.enabled = false;
-        Vector3 startPos = transform.position, startScale = transform.localScale;
-        for (float t = 0; t < 1f; t += Time.deltaTime / 0.35f)
-        {
-            transform.position = Vector3.Lerp(startPos, holeCenter, t);
-            transform.localScale = Vector3.Lerp(startScale, Vector3.zero, t);
-            yield return null;
-        }
-        transform.localScale = startScale;
-        SetBallState(false);
-    }
+		if (audioSource != null && shotSound != null)
+		{
+			audioSource.PlayOneShot(shotSound);
+		}
+	}
+
+	void FixedUpdate()
+	{
+		if (isMoving && Time.time - shotTime > 0.15f && ballCollider.enabled && rb.linearVelocity.magnitude < 0.05f)
+		{
+			rb.linearVelocity = Vector2.zero;
+			rb.angularVelocity = 0f;
+			isMoving = false;
+			OnBallStopped?.Invoke();
+		}
+	}
+
+	public void PlayHoleInSound()
+	{
+		if (audioSource != null && holeInSound != null)
+		{
+			audioSource.PlayOneShot(holeInSound);
+		}
+	}
+
+	public bool IsStopped()
+	{
+		return !isMoving && rb.linearVelocity.magnitude < 0.05f;
+	}
+
+	public void ClearTrail()
+	{
+		if (ballTrail != null) ballTrail.Clear();
+	}
+
+	public IEnumerator HoleInAnimation(Vector3 holeCenter)
+	{
+		rb.linearVelocity = Vector2.zero;
+		ballCollider.enabled = false;
+		Vector3 startPos = transform.position, startScale = transform.localScale;
+		for (float t = 0; t < 1f; t += Time.deltaTime / 0.35f)
+		{
+			transform.position = Vector3.Lerp(startPos, holeCenter, t);
+			transform.localScale = Vector3.Lerp(startScale, Vector3.zero, t);
+			yield return null;
+		}
+		transform.localScale = startScale;
+		SetBallState(false);
+	}
 }

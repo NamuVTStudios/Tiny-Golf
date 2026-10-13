@@ -19,8 +19,23 @@ public class GameplayUIManager : MonoBehaviour
     [SerializeField] private TextMeshProUGUI matchTimeText;
     [SerializeField] private TextMeshProUGUI turnTimeText;
 
+	[SerializeField] private TextMeshProUGUI materialText;
 
-    private void Awake()
+	public void UpdateMaterialName(string materialName)
+	{
+		if (materialText != null) materialText.text = $"Ball: {materialName}";
+	}
+
+	private int levelNumber = 1;
+	private int totalLevels = 1;
+
+	public void SetLevelInfo(int level, int levels)
+	{
+		levelNumber = level;
+		totalLevels = levels;
+	}
+
+	private void Awake()
     {
         if (Instance != null && Instance != this)
         {
@@ -40,9 +55,9 @@ public class GameplayUIManager : MonoBehaviour
             strokesText.text = $"Strokes: {currentStrokes} / {maxStrokes}";
 
         if (holeNumberText != null)
-            holeNumberText.text = $"Hole: {currentHole} / {totalHoles}";
+			holeNumberText.text = $"Level {levelNumber}/{totalLevels}  -  Hole {currentHole}/{totalHoles}";
 
-        if (activePlayerAvatarImage != null && playerAvatar != null)
+		if (activePlayerAvatarImage != null && playerAvatar != null)
         {
             activePlayerAvatarImage.sprite = playerAvatar;
         }

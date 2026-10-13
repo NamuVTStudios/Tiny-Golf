@@ -9,4 +9,6 @@ public class RubberMaterialStrategy : IBallMaterialStrategy
         rb.linearDamping = 0.8f;
         collider.sharedMaterial = new PhysicsMaterial2D { bounciness = 0.95f, friction = 0.4f };
     }
+
+	public Sprite GetOverrideSprite(GameSettings settings) => settings != null ? settings.rubberBallSprite : null;
 }

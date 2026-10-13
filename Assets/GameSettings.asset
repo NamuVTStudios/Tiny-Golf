@@ -14,15 +14,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerCount: 4
   totalHoles: 3
-  maxStrokesPerHole: 2
-  turnTimeLimit: 30
+  maxStrokesPerHole: 6
+  turnTimeLimit: 6
   matchTimeLimit: 300
-  playerNames: []
+  playerNames:
+  - 1
+  - 2
+  - 3
+  - 4
+  rubberBallSprite: {fileID: 21300000, guid: 482d72c73eb50f04c82f5647a261a78c, type: 3}
+  stoneBallSprite: {fileID: 21300000, guid: 488fe6cd2e04d5442af71c66565fe553, type: 3}
   selectedPlayerSpriteIndices: 00000000000000000000000000000000
-  availableBallSprites:
-  - {fileID: 21300000, guid: 80687c149c68d6d4abdffa3cf774833b, type: 3}
-  - {fileID: 21300000, guid: 482d72c73eb50f04c82f5647a261a78c, type: 3}
-  - {fileID: 21300000, guid: 488fe6cd2e04d5442af71c66565fe553, type: 3}
+  availableBallSprites: []
   availablePlayerSprites:
   - {fileID: 21300000, guid: 4992c9f70621ce747b79395381fc4b92, type: 3}
   - {fileID: 21300000, guid: 9a94e8a4de8504147abe43bb2bcd78b9, type: 3}

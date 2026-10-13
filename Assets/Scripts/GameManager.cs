@@ -5,329 +5,387 @@ using UnityEngine.SceneManagement;
 
 public class GameManager : MonoBehaviour
 {
-    public static GameManager Instance { get; private set; }
+	public static GameManager Instance { get; private set; }
 
-    [Header("Configuration")]
-    [SerializeField] private GameSettings gameSettings;
+	[Header("Configuration")]
+	[SerializeField] private GameSettings gameSettings;
 
-    [Header("Sub-Systems")]
-    [SerializeField] private TurnController turnController;
-    [SerializeField] private ShotController shotController;
+	[Header("Sub-Systems")]
+	[SerializeField] private TurnController turnController;
+	[SerializeField] private ShotController shotController;
 
-    [Header("Gameplay References")]
-    [SerializeField] private Ball gameplayBall;
-    [SerializeField] private Transform spawnPoint;
+	[Header("Gameplay References")]
+	[SerializeField] private Ball gameplayBall;
+	[SerializeField] private Transform spawnPoint;
 
-    private bool isProcessingHole = false;
-    private bool isBallOutOfBounds = false;
-    private bool isMatchActive = false;
-    private bool activePlayerMaxStrokesReached = false;
-    private ScoreController scoreController;
-    private bool isLevelEnding = false;
-    public bool CanPlayerShoot => isMatchActive && !isProcessingHole && !isLevelEnding;
-    private float matchTimeRemaining;   // en StartGlobalMatch: = gameSettings.matchTimeLimit;
-    private HashSet<int> playersWhoFinishedCurrentHole = new HashSet<int>();
+	private bool isProcessingHole = false;
+	private bool isBallOutOfBounds = false;
+	private bool isMatchActive = false;
+	private bool activePlayerMaxStrokesReached = false;
+	private ScoreController scoreController;
+	private bool isLevelEnding = false;
+	public bool CanPlayerShoot => isMatchActive && !isProcessingHole && !isLevelEnding;
+	private float matchTimeRemaining;   // en StartGlobalMatch: = gameSettings.matchTimeLimit;
+	private HashSet<int> playersWhoFinishedCurrentHole = new HashSet<int>();
 
-    private void Awake()
-    {
-        if (Instance != null && Instance != this)
-        {
-            Destroy(gameObject);
-            return;
-        }
-        Instance = this;
-        scoreController = GetComponent<ScoreController>();
-    }
+	private int currentHoleInLevel = 1;
 
-    private void Start()
-    {
-        StartGlobalMatch();
-    }
+	private void Awake()
+	{
+		if (Instance != null && Instance != this)
+		{
+			Destroy(gameObject);
+			return;
+		}
+		Instance = this;
+		scoreController = GetComponent<ScoreController>();
+	}
 
-    public void OnTurnTimeExpired()
-    {
-        if (!isMatchActive || isProcessingHole || isLevelEnding) return;
-        // Si la bola rueda, HandleBallStopped ya pasa el turno cuando frene
-        if (gameplayBall.IsStopped()) AdvanceToNextTurn();
-    }
+	private void Start()
+	{
+		StartGlobalMatch();
+	}
 
-    private void Update()
-    {
-        if (!isMatchActive) return;
-        matchTimeRemaining -= Time.deltaTime;
-        GameplayUIManager.Instance.UpdateMatchTime(matchTimeRemaining);
-        if (matchTimeRemaining <= 0f) FinishMatch();
-    }
+	public void OnTurnTimeExpired()
+	{
+		if (!isMatchActive || isProcessingHole || isLevelEnding) return;
+		// Si la bola rueda, HandleBallStopped ya pasa el turno cuando frene
+		if (gameplayBall.IsStopped()) AdvanceToNextTurn();
+	}
 
-    private void StartGlobalMatch()
-    {
-        isMatchActive = true;
-        isProcessingHole = false;
-        isLevelEnding = false;
-        activePlayerMaxStrokesReached = false;
-        playersWhoFinishedCurrentHole.Clear();
+	private void Update()
+	{
+		if (!isMatchActive) return;
+		matchTimeRemaining -= Time.deltaTime;
+		GameplayUIManager.Instance.UpdateMatchTime(matchTimeRemaining);
+		if (matchTimeRemaining <= 0f) FinishMatch();
+	}
 
-        // Por si abrís un nivel directo desde el editor sin pasar por el menú
-        if (MatchSession.Scores.Count != gameSettings.playerCount)
-            MatchSession.Reset(gameSettings.playerCount, gameSettings.matchTimeLimit);
-        matchTimeRemaining = MatchSession.MatchTimeRemaining;
+	private void StartGlobalMatch()
+	{
+		isMatchActive = true;
+		isProcessingHole = false;
+		isLevelEnding = false;
+		currentHoleInLevel = 1;
+		activePlayerMaxStrokesReached = false;
+		playersWhoFinishedCurrentHole.Clear();
 
-        scoreController.InitializeScoreboard(gameSettings.playerCount);
-        turnController.InitializeTurns(gameSettings.playerCount, gameSettings.turnTimeLimit, spawnPoint.position, gameSettings.playerNames);
-        turnController.OnTimeChanged += GameplayUIManager.Instance.UpdateTurnTime;
+		// Por si abrís un nivel directo desde el editor sin pasar por el menú
+		if (MatchSession.Scores.Count != gameSettings.playerCount)
+			MatchSession.Reset(gameSettings.playerCount, gameSettings.matchTimeLimit);
+		matchTimeRemaining = MatchSession.MatchTimeRemaining;
 
-        gameplayBall.OnBallStopped -= HandleBallStopped;
-        gameplayBall.OnBallStopped += HandleBallStopped;
+		scoreController.InitializeScoreboard(gameSettings.playerCount);
+		turnController.InitializeTurns(gameSettings.playerCount, gameSettings.turnTimeLimit, spawnPoint.position, gameSettings.playerNames);
+		turnController.OnTimeChanged += GameplayUIManager.Instance.UpdateTurnTime;
 
-        AdvanceToNextTurn();
-    }
+		gameplayBall.OnBallStopped -= HandleBallStopped;
+		gameplayBall.OnBallStopped += HandleBallStopped;
+		GameplayUIManager.Instance.SetLevelInfo(MatchSession.CurrentLevel + 1, MatchSession.LevelScenes.Length);
+		AdvanceToNextTurn();
+	}
 
-    public void AdvanceToNextTurn()
-    {
-        if (!isMatchActive) return;
+	public void AdvanceToNextTurn()
+	{
+		if (!isMatchActive) return;
 
-        shotController.enabled = false;
+		shotController.enabled = false;
 
-        // 1. Guardar la posición del jugador que acaba de tirar (si no terminó el hoyo)
-        if (turnController.CurrentPlayer != null &&
-            !playersWhoFinishedCurrentHole.Contains(turnController.CurrentPlayer.Id) &&
-            !isBallOutOfBounds)
-        {
-            turnController.CurrentPlayer.LastSavedPosition = gameplayBall.transform.position;
-        }
+		// 1. Guardar la posición del jugador que acaba de tirar (si no terminó el hoyo)
+		if (turnController.CurrentPlayer != null &&
+			!playersWhoFinishedCurrentHole.Contains(turnController.CurrentPlayer.Id))
+		{
+			Vector2 savedPos = isBallOutOfBounds ? (Vector2)spawnPoint.position : (Vector2)gameplayBall.transform.position;
+			turnController.CurrentPlayer.LastSavedPosition = savedPos;
+			Debug.Log($"[Posición] {turnController.CurrentPlayer.Name} guardado en {savedPos}{(isBallOutOfBounds ? " (salió del mapa, vuelve al Spawn)" : "")}");
+		}
+		isBallOutOfBounds = false;
 
-        if (isBallOutOfBounds)
-        {
-            if (turnController.CurrentPlayer != null)
-            {
-                turnController.CurrentPlayer.LastSavedPosition = spawnPoint.position;
-            }
-            isBallOutOfBounds = false;
-        }
+		// 2. Buscar secuencialmente al siguiente jugador habilitado para este hoyo
+		bool nextPlayerFound = false;
+		for (int i = 0; i < gameSettings.playerCount; i++)
+		{
+			turnController.PassToNextPlayer();
 
-        // 2. Buscar secuencialmente al siguiente jugador habilitado para este hoyo
-        bool nextPlayerFound = false;
-        for (int i = 0; i < gameSettings.playerCount; i++)
-        {
-            turnController.PassToNextPlayer();
+			if (!playersWhoFinishedCurrentHole.Contains(turnController.CurrentPlayer.Id))
+			{
+				nextPlayerFound = true;
+				break;
+			}
+		}
 
-            if (!playersWhoFinishedCurrentHole.Contains(turnController.CurrentPlayer.Id))
-            {
-                nextPlayerFound = true;
-                break;
-            }
-        }
+		// 3. Evaluar si la ronda terminó porque todos completaron o agotaron golpes
+		if (!nextPlayerFound || playersWhoFinishedCurrentHole.Count >= gameSettings.playerCount)
+		{
+			EvaluateHoleProgression();
+			return;
+		}
 
-        // 3. Evaluar si la ronda terminó porque todos completaron o agotaron golpes
-        if (!nextPlayerFound || playersWhoFinishedCurrentHole.Count >= gameSettings.playerCount)
-        {
-            EvaluateHoleProgression();
-            return;
-        }
+		// 4. Mover la bola física a la marca del jugador de turno
+		ResetBallToSavedPosition(turnController.CurrentPlayer.LastSavedPosition);
+		Debug.Log($"[Turno] {turnController.CurrentPlayer.Name} arranca en {turnController.CurrentPlayer.LastSavedPosition}");
 
-        // 4. Mover la bola física a la marca del jugador de turno
-        ResetBallToSavedPosition(turnController.CurrentPlayer.LastSavedPosition);
+		gameplayBall.SetBallState(true);
 
-        gameplayBall.SetBallState(true);
+		gameplayBall.SetBallState(true);
+		ApplyPlayerMaterial();   // <-- línea nueva
+		ApplyPlayerVisuals();
+		UpdateGameplayUI();
 
-        // --- COMPROBÁ QUE ESTAS DOS LÍNEAS ESTÉN AQUÍ DE FORMA CONSECUTIVA ---
-        ApplyPlayerVisuals();  // Cambia el Sprite de la pelota en la cancha
-        UpdateGameplayUI();    // Cambia el Nombre, los Golpes y el Retrato del personaje en el Canvas HUD
+		shotController.enabled = true;
+	}
 
-        shotController.enabled = true;
-    }
+	private void HandleBallStopped()
+	{
+		if (isProcessingHole || !isMatchActive) return;
 
-    private void HandleBallStopped()
-    {
-        if (isProcessingHole || !isMatchActive) return;
+		// --- INTERCEPCIÓN REGLAMENTARIA DE GOLPES MÁXIMOS POR HOYO (UNAHUR) ---
+		if (activePlayerMaxStrokesReached)
+		{
+			activePlayerMaxStrokesReached = false;
 
-        // --- INTERCEPCIÓN REGLAMENTARIA DE GOLPES MÁXIMOS POR HOYO (UNAHUR) ---
-        if (activePlayerMaxStrokesReached)
-        {
-            activePlayerMaxStrokesReached = false;
+			Debug.LogWarning($"GameManager: {turnController.CurrentPlayer.Name} se quedó sin tiros. Fin de su turno en este hoyo.");
 
-            Debug.LogWarning($"GameManager: {turnController.CurrentPlayer.Name} se quedó sin tiros. Fin de su turno en este hoyo.");
+			// Lo anotamos en la lista de los que terminaron este hoyo
+			playersWhoFinishedCurrentHole.Add(turnController.CurrentPlayer.Id);
 
-            // Lo anotamos en la lista de los que terminaron este hoyo
-            playersWhoFinishedCurrentHole.Add(turnController.CurrentPlayer.Id);
+			gameplayBall.SetBallState(false);
+			ResetBallToSavedPosition(spawnPoint.position);
 
-            gameplayBall.SetBallState(false);
-            ResetBallToSavedPosition(spawnPoint.position);
+			// Si con este jugador ya terminaron absolutamente todos, avanzamos de hoyo lógico
+			if (playersWhoFinishedCurrentHole.Count >= gameSettings.playerCount)
+			{
+				EvaluateHoleProgression();
+			}
+			else
+			{
+				AdvanceToNextTurn();
+			}
+			return;
+		}
 
-            // Si con este jugador ya terminaron absolutamente todos, avanzamos de hoyo lógico
-            if (playersWhoFinishedCurrentHole.Count >= gameSettings.playerCount)
-            {
-                EvaluateHoleProgression();
-            }
-            else
-            {
-                AdvanceToNextTurn();
-            }
-            return;
-        }
+		// Caso normal: Si le quedan tiros, el turno pasa y la bola retiene su posición
+		AdvanceToNextTurn();
+	}
 
-        // Caso normal: Si le quedan tiros, el turno pasa y la bola retiene su posición
-        AdvanceToNextTurn();
-    }
+	public void NotifyPlayerMaxStrokesReached()
+	{
+		activePlayerMaxStrokesReached = true;
+	}
 
-    public void NotifyPlayerMaxStrokesReached()
-    {
-        activePlayerMaxStrokesReached = true;
-    }
+	// Cada tiro nuevo limpia cualquier aviso viejo de "fuera del mapa"
+	public void OnShotTaken()
+	{
+		isBallOutOfBounds = false;
+	}
 
-    public void NotifyBallOutOfBounds()
-    {
-        isBallOutOfBounds = true;
-    }
+	public void NotifyBallOutOfBounds()
+	{
+		// Solo cuenta si la bola va en un tiro real. Ignora avisos por apagar el collider,
+		// cambiar el material, teletransportes, la animación del hoyo, etc.
+		if (!CanPlayerShoot || !gameplayBall.IsMoving)
+		{
+			Debug.Log("[FueraDelMapa] Aviso ignorado (no era un tiro real).");
+			return;
+		}
+		isBallOutOfBounds = true;
+	}
 
-    public void RegisterHoleCompletion(Vector3 holePos)
-    {
-        if (isProcessingHole || !isMatchActive || isLevelEnding) return;
-        StartCoroutine(ProcessHoleSequence(holePos));
-    }
+	public void RegisterHoleCompletion(Vector3 holePos)
+	{
+		if (isProcessingHole || !isMatchActive || isLevelEnding) return;
+		StartCoroutine(ProcessHoleSequence(holePos));
+	}
 
-    private IEnumerator ProcessHoleSequence(Vector3 holePos)
-    {
-        isProcessingHole = true;
-        shotController.enabled = false;
-        gameplayBall.OnBallStopped -= HandleBallStopped;
+	private IEnumerator ProcessHoleSequence(Vector3 holePos)
+	{
+		isProcessingHole = true;
+		shotController.enabled = false;
+		gameplayBall.OnBallStopped -= HandleBallStopped;
 
-        activePlayerMaxStrokesReached = false;
-        gameplayBall.PlayHoleInSound();
+		activePlayerMaxStrokesReached = false;
+		gameplayBall.PlayHoleInSound();
 
-        PlayerData activePlayer = turnController.CurrentPlayer;
-        scoreController.RegisterHoleScore(activePlayer.Id);
-        playersWhoFinishedCurrentHole.Add(activePlayer.Id);
-        UpdateGameplayUI(); // el puntaje se actualiza al instante
+		PlayerData activePlayer = turnController.CurrentPlayer;
+		scoreController.RegisterHoleScore(activePlayer.Id);
+		playersWhoFinishedCurrentHole.Add(activePlayer.Id);
+		UpdateGameplayUI(); // el puntaje se actualiza al instante
 
-        yield return StartCoroutine(gameplayBall.HoleInAnimation(holePos));
-        yield return new WaitForSeconds(0.3f);
+		yield return StartCoroutine(gameplayBall.HoleInAnimation(holePos));
+		yield return new WaitForSeconds(0.3f);
 
-        ResetBallToSavedPosition(spawnPoint.position);
+		ResetBallToSavedPosition(spawnPoint.position);
 
-        gameplayBall.OnBallStopped += HandleBallStopped;
-        isProcessingHole = false;
+		gameplayBall.OnBallStopped += HandleBallStopped;
+		isProcessingHole = false;
 
-        AdvanceToNextTurn();
-    }
+		AdvanceToNextTurn();
+	}
 
-    private void EvaluateHoleProgression()
-    {
-        if (isLevelEnding) return;
-        isLevelEnding = true;
-        shotController.enabled = false;
-        StartCoroutine(EndLevelRoutine());
-    }
+	private void EvaluateHoleProgression()
+	{
+		if (isLevelEnding) return;
 
-    private IEnumerator EndLevelRoutine()
-    {
-        yield return new WaitForSeconds(1.5f);
+		// Todavía quedan hoyos en este nivel: reiniciamos el hoyo en la misma escena
+		if (currentHoleInLevel < Mathf.Max(1, gameSettings.totalHoles))
+		{
+			StartNextHole();
+			return;
+		}
 
-        playersWhoFinishedCurrentHole.Clear();
-        MatchSession.MatchTimeRemaining = matchTimeRemaining;
-        MatchSession.CurrentLevel++;
+		// Era el último hoyo del nivel: pasamos al siguiente nivel (o terminamos)
+		isLevelEnding = true;
+		shotController.enabled = false;
+		StartCoroutine(EndLevelRoutine());
+	}
 
-        if (MatchSession.CurrentLevel >= MatchSession.LevelScenes.Length)
-            FinishMatch();
-        else
-            SceneManager.LoadScene(MatchSession.LevelScenes[MatchSession.CurrentLevel]);
-    }
+	private void StartNextHole()
+	{
+		currentHoleInLevel++;
+		playersWhoFinishedCurrentHole.Clear();
+		activePlayerMaxStrokesReached = false;
+		isBallOutOfBounds = false;
+		scoreController.StartNewHole();
 
-    private void ResetBallToSavedPosition(Vector2 positionToMove)
-    {
-        if (gameplayBall == null) return;
-        gameplayBall.ClearTrail();
+		foreach (var p in turnController.Players)
+		{
+			p.CurrentHoleStrokes = 0;
+			p.LastSavedPosition = spawnPoint.position;
+		}
 
-        Rigidbody2D ballRb = gameplayBall.GetComponent<Rigidbody2D>();
-        ballRb.linearVelocity = Vector2.zero;
-        ballRb.angularVelocity = 0f;
+		ResetBallToSavedPosition(spawnPoint.position);
+		AdvanceToNextTurn();
+	}
 
-        gameplayBall.transform.position = positionToMove;
-    }
+	private IEnumerator EndLevelRoutine()
+	{
+		yield return new WaitForSeconds(1.5f);
 
-    private void ApplyPlayerVisuals()
-    {
-        // 1. Buscamos el componente encargado de renderizar la imagen de la bola física en la cancha
-        SpriteRenderer ballRenderer = gameplayBall.GetComponent<SpriteRenderer>();
+		playersWhoFinishedCurrentHole.Clear();
+		MatchSession.MatchTimeRemaining = matchTimeRemaining;
+		MatchSession.CurrentLevel++;
 
-        if (ballRenderer != null && gameSettings.availableBallSprites != null && turnController.CurrentPlayer != null)
-        {
-            int activePlayerId = turnController.CurrentPlayer.Id;
+		if (MatchSession.CurrentLevel >= MatchSession.LevelScenes.Length)
+			FinishMatch();
+		else
+			SceneManager.LoadScene(MatchSession.LevelScenes[MatchSession.CurrentLevel]);
+	}
 
-            // Comprobamos que el ID del jugador exista dentro del arreglo de elecciones del menú
-            if (gameSettings.selectedPlayerSpriteIndices != null && activePlayerId < gameSettings.selectedPlayerSpriteIndices.Length)
-            {
-                // Conseguimos el índice estético que este jugador específico eligió
-                int spriteIndex = gameSettings.selectedPlayerSpriteIndices[activePlayerId];
+	private void ResetBallToSavedPosition(Vector2 positionToMove)
+	{
+		if (gameplayBall == null) return;
+		gameplayBall.TeleportTo(positionToMove);
+	}
 
-                // Inyectamos de forma dinámica el diseño de pelota correspondiente de tu Spritesheet
-                if (spriteIndex >= 0 && spriteIndex < gameSettings.availableBallSprites.Length)
-                {
-                    ballRenderer.sprite = gameSettings.availableBallSprites[spriteIndex];
-                    Debug.Log($"[Visual Bola] Aplicado diseño para {turnController.CurrentPlayer.Name}. Índice: {spriteIndex}");
-                }
-            }
-        }
-    }
+	private void ApplyPlayerVisuals()
+	{
+		if (gameSettings.availableBallSprites == null || turnController.CurrentPlayer == null) return;
 
-    public void UpdateGameplayUI()
-    {
-        if (!isMatchActive) return;
+		int id = turnController.CurrentPlayer.Id;
+		if (gameSettings.selectedPlayerSpriteIndices == null || id >= gameSettings.selectedPlayerSpriteIndices.Length) return;
 
-        Sprite activeAvatarSprite = null;
+		int idx = gameSettings.selectedPlayerSpriteIndices[id];
+		if (idx >= 0 && idx < gameSettings.availableBallSprites.Length)
+			gameplayBall.SetPlayerSprite(gameSettings.availableBallSprites[idx]);
+	}
 
-        if (turnController != null && turnController.CurrentPlayer != null)
-        {
-            int activePlayerId = turnController.CurrentPlayer.Id;
+	public void UpdateGameplayUI()
+	{
+		if (!isMatchActive) return;
 
-            if (gameSettings.selectedPlayerSpriteIndices != null && activePlayerId < gameSettings.selectedPlayerSpriteIndices.Length)
-            {
-                // Buscamos el índice del personaje que eligió este jugador en el menú principal
-                int avatarIndex = gameSettings.selectedPlayerSpriteIndices[activePlayerId];
+		Sprite activeAvatarSprite = null;
 
-                // Extraemos la foto de la biblioteca de avatares de personajes
-                if (gameSettings.availablePlayerSprites != null && avatarIndex >= 0 && avatarIndex < gameSettings.availablePlayerSprites.Length)
-                {
-                    activeAvatarSprite = gameSettings.availablePlayerSprites[avatarIndex];
-                }
-            }
-        }
+		if (turnController != null && turnController.CurrentPlayer != null)
+		{
+			int activePlayerId = turnController.CurrentPlayer.Id;
 
-        GameplayUIManager.Instance.UpdateHUD(
-            turnController.CurrentPlayer != null ? turnController.CurrentPlayer.Name : "Player",
-            turnController.CurrentPlayer != null ? turnController.CurrentPlayer.CurrentHoleStrokes : 0,
-            gameSettings.maxStrokesPerHole,
-            scoreController.GetCurrentHoleNumber(),
-            gameSettings.totalHoles,
-            activeAvatarSprite
-        );
+			if (gameSettings.selectedPlayerSpriteIndices != null && activePlayerId < gameSettings.selectedPlayerSpriteIndices.Length)
+			{
+				// Buscamos el índice del personaje que eligió este jugador en el menú principal
+				int avatarIndex = gameSettings.selectedPlayerSpriteIndices[activePlayerId];
 
-        GameplayUIManager.Instance.UpdateScoreboard(BuildScoreboard());
-    }
+				// Extraemos la foto de la biblioteca de avatares de personajes
+				if (gameSettings.availablePlayerSprites != null && avatarIndex >= 0 && avatarIndex < gameSettings.availablePlayerSprites.Length)
+				{
+					activeAvatarSprite = gameSettings.availablePlayerSprites[avatarIndex];
+				}
+			}
+		}
 
-    private string BuildScoreboard()
-    {
-        var sb = new System.Text.StringBuilder();
-        foreach (var p in turnController.Players)
-        {
-            string mark = p == turnController.CurrentPlayer ? "> " : "  ";
-            sb.AppendLine($"{mark}{p.Name}: {scoreController.GetPlayerScore(p.Id)} pts");
-        }
-        return sb.ToString();
-    }
+		GameplayUIManager.Instance.UpdateHUD(
+		turnController.CurrentPlayer != null ? turnController.CurrentPlayer.Name : "Player",
+		turnController.CurrentPlayer != null ? turnController.CurrentPlayer.CurrentHoleStrokes : 0,
+		gameSettings.maxStrokesPerHole,
+		currentHoleInLevel,
+		Mathf.Max(1, gameSettings.totalHoles),
+		activeAvatarSprite
+		);
 
-    private void FinishMatch()
-    {
-        isMatchActive = false;
-        shotController.enabled = false;
-        gameplayBall.SetBallState(false);
+		GameplayUIManager.Instance.UpdateScoreboard(BuildScoreboard());
+	}
 
-        MatchSummaryController summaryCtrl = FindAnyObjectByType<MatchSummaryController>();
-        if (summaryCtrl != null)
-        {
-            summaryCtrl.DisplayMatchResults(scoreController.GetRawScores(), gameSettings.playerCount, gameSettings.playerNames);
-        }
-    }
+	private string BuildScoreboard()
+	{
+		var sb = new System.Text.StringBuilder();
+		foreach (var p in turnController.Players)
+		{
+			string mark = p == turnController.CurrentPlayer ? "> " : "  ";
+			sb.AppendLine($"{mark}{p.Name}: {scoreController.GetPlayerScore(p.Id)} pts");
+		}
+		return sb.ToString();
+	}
 
-    public GameSettings GetGameSettings() => gameSettings;
+	private void FinishMatch()
+	{
+		isMatchActive = false;
+		shotController.enabled = false;
+		gameplayBall.SetBallState(false);
+
+		MatchSummaryController summaryCtrl = FindAnyObjectByType<MatchSummaryController>();
+		if (summaryCtrl != null)
+		{
+			summaryCtrl.DisplayMatchResults(scoreController.GetRawScores(), gameSettings.playerCount, gameSettings.playerNames);
+		}
+	}
+
+	private IBallMaterialStrategy CreateMaterial(int index)
+	{
+		switch (index)
+		{
+			case 1: return new RubberMaterialStrategy();
+			case 2: return new StoneMaterialStrategy();
+			default: return new StandardMaterialStrategy();
+		}
+	}
+
+	// Se llama al empezar el turno de cada jugador: le pone SU material a la bola
+	private void ApplyPlayerMaterial()
+	{
+		if (turnController.CurrentPlayer == null) return;
+
+		int index = MatchSession.GetMaterial(turnController.CurrentPlayer.Id);
+		IBallMaterialStrategy material = CreateMaterial(index);
+		gameplayBall.ChangeMaterial(material);
+
+		if (GameplayUIManager.Instance != null)
+			GameplayUIManager.Instance.UpdateMaterialName(material.MaterialName);
+	}
+
+	// Lo llama el botón (vía MaterialSelector): pasa al siguiente material del jugador actual
+	public void CycleCurrentPlayerMaterial()
+	{
+		if (turnController.CurrentPlayer == null) return;
+
+		int id = turnController.CurrentPlayer.Id;
+		int next = (MatchSession.GetMaterial(id) + 1) % 3;
+		MatchSession.SetMaterial(id, next);
+
+		IBallMaterialStrategy material = CreateMaterial(next);
+		gameplayBall.ChangeMaterial(material);
+
+		if (GameplayUIManager.Instance != null)
+			GameplayUIManager.Instance.UpdateMaterialName(material.MaterialName);
+	}
+
+	public GameSettings GetGameSettings() => gameSettings;
 }
