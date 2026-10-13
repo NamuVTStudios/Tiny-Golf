@@ -65,9 +65,10 @@ public class ShotController : MonoBehaviour
 
         // CORRECCIÓN MAGISTRAL: Le pasamos un único Vector2 a la bola
         targetBall.ApplyForce(finalCombinedForce);
+		GameManager.Instance.OnShotTaken();
 
-        // 4. Registrar el golpe en el TurnController leyendo los settings del GameManager
-        GameSettings settings = GameManager.Instance.GetGameSettings();
+		// 4. Registrar el golpe en el TurnController leyendo los settings del GameManager
+		GameSettings settings = GameManager.Instance.GetGameSettings();
         bool outOfStrokes = turnController.RegisterStroke(settings.maxStrokesPerHole);
 
         // 5. Refrescar la UI en pantalla en tiempo real

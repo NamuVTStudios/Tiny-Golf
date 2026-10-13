@@ -15,7 +15,12 @@ public class ScoreController : MonoBehaviour
         }
     }
 
-    public void RegisterHoleScore(int playerId)
+	public void StartNewHole()
+	{
+		hasAnyPlayerScoredInCurrentHole = false;
+	}
+
+	public void RegisterHoleScore(int playerId)
     {
         if (!MatchSession.Scores.ContainsKey(playerId)) return;
 

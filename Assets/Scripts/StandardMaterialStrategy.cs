@@ -9,4 +9,6 @@ public class StandardMaterialStrategy : IBallMaterialStrategy
         rb.linearDamping = 1.5f;
         collider.sharedMaterial = new PhysicsMaterial2D { bounciness = 0.6f, friction = 0.4f };
     }
+
+	public Sprite GetOverrideSprite(GameSettings settings) => null;
 }
